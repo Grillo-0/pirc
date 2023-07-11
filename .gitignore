@@ -1,0 +1,8 @@
+*.o
+pirc-client
+pirc-server
+pirc-simple-client
+pirc-simple-server
+pirc-com
+compile_commands.json
+.cache
