@@ -13,8 +13,11 @@
 void handle_msg(struct msg* msg) {
 	switch (msg->cmd) {
 	case CMD_MSG:
-		printf("\r" SV_FMT ": " SV_FMT "\n>", SV_ARGS(msg->prefix),
-						      SV_ARGS(msg->params[0]));
+		if (msg->prefix.len == 0)
+			printf("\r" "*SERVER*: " SV_FMT "\n>", SV_ARGS(msg->params[0]));
+		else
+			printf("\r" SV_FMT ": " SV_FMT "\n>", SV_ARGS(msg->prefix),
+							      SV_ARGS(msg->params[0]));
 		break;
 	case CMD_PONG:
 		if (msg->prefix.len == 0)
@@ -60,6 +63,9 @@ void handle_input(char* input) {
 	struct msg msg;
 
 	if (input[0] != '/' && cli.nickname) {
+		if (input[strlen(input) - 1] == '\n')
+			input[strlen(input) - 1] = '\0';
+
 		msg_create(&msg, cli.nickname, CMD_MSG, input);
 		msg_send(&cli.soc, &msg);
 		msg_free(&msg);
@@ -67,22 +73,24 @@ void handle_input(char* input) {
 	}
 
 	struct sv input_sv = sv_from_cstr(input);
-	sv_chop_by_delim(&input_sv, '/');
 	input_sv = sv_chop_by_delim(&input_sv, '\n');
+	sv_chop_by_delim(&input_sv, '/');
 	struct sv cmd = sv_chop_by_delim(&input_sv, ' ');
-
-	if (!cli.nickname && sv_comp(cmd, SV("connect"))) {
-		fprintf(stderr, "ERROR: client is not connected yet!\n");
-		fprintf(stderr, "usage: /connect [nickname]@[remote]:[port]\n");
-		return;
-	}
 
 	if (!sv_comp(cmd, SV("quit"))) {
 		close(cli.soc.fd);
 		free(cli.nickname);
 		cli.nickname = NULL;
 		exit(EXIT_SUCCESS);
-	} else if (!sv_comp(cmd, SV("ping"))) {
+	}
+
+	if (!cli.nickname && (sv_comp(cmd, SV("connect")))) {
+		fprintf(stderr, "ERROR: client is not connected yet!\n");
+		fprintf(stderr, "usage: /connect [nickname]@[remote]:[port]\n");
+		return;
+	}
+
+	if (!sv_comp(cmd, SV("ping"))) {
 		msg_create(&msg, cli.nickname, CMD_PING);
 		msg_send(&cli.soc, &msg);
 		msg_free(&msg);
@@ -105,11 +113,9 @@ void handle_input(char* input) {
 			return;
 		}
 
-		struct sv port_sv = sv_chop_by_delim(&input_sv, ':');
-
 		cli.nickname = sv_to_cstr(nickname_sv);
 		char* remote = sv_to_cstr(remote_sv);
-		char* port = sv_to_cstr(port_sv);
+		char* port = sv_to_cstr(input_sv);
 
 		socket_create(&cli.soc);
 		if(socket_connect(&cli.soc, remote, atoi(port))) {
@@ -133,6 +139,72 @@ void handle_input(char* input) {
 		msg_free(&msg);
 		free(remote);
 		free(port);
+	} else if (!sv_comp(cmd, SV("join"))) {
+		if (!input_sv.len) {
+			fprintf(stderr, "ERROR: no channel given!\n");
+			fprintf(stderr, "usage: /join [channel]\n");
+			return;
+		}
+		char* ch_name = sv_to_cstr(sv_chop_by_delim(&input_sv, ' '));
+		msg_create(&msg, cli.nickname, CMD_JOIN, ch_name);
+		msg_send(&cli.soc, &msg);
+		msg_free(&msg);
+		free(ch_name);
+	} else if (!sv_comp(cmd, SV("nickname"))) {
+		if (!input_sv.len) {
+			fprintf(stderr, "ERROR: no username given!\n");
+			fprintf(stderr, "usage: /nickname [nickname]\n");
+			return;
+		}
+		free(cli.nickname);
+		cli.nickname = sv_to_cstr(input_sv);
+		msg_create(&msg, cli.nickname, CMD_NICKNAME);
+		msg_send(&cli.soc, &msg);
+		msg_free(&msg);
+	} else if (!sv_comp(cmd, SV("kick"))) {
+		if (!input_sv.len) {
+			fprintf(stderr, "ERROR: no username given!\n");
+			fprintf(stderr, "usage: /kick [nickname]\n");
+			return;
+		}
+		char* username = sv_to_cstr(input_sv);
+		msg_create(&msg, cli.nickname, CMD_KICK, username);
+		msg_send(&cli.soc, &msg);
+		msg_free(&msg);
+		free(username);
+	} else if (!sv_comp(cmd, SV("whois"))) {
+		if (!input_sv.len) {
+			fprintf(stderr, "ERROR: no username given!\n");
+			fprintf(stderr, "usage: /whois [nickname]\n");
+			return;
+		}
+		char* username = sv_to_cstr(input_sv);
+		msg_create(&msg, cli.nickname, CMD_WHOIS, username);
+		msg_send(&cli.soc, &msg);
+		msg_free(&msg);
+		free(username);
+	} else if (!sv_comp(cmd, SV("mute"))) {
+		if (!input_sv.len) {
+			fprintf(stderr, "ERROR: no username given!\n");
+			fprintf(stderr, "usage: /mute [nickname]\n");
+			return;
+		}
+		char* username = sv_to_cstr(input_sv);
+		msg_create(&msg, cli.nickname, CMD_MUTE, username);
+		msg_send(&cli.soc, &msg);
+		msg_free(&msg);
+		free(username);
+	} else if (!sv_comp(cmd, SV("unmute"))) {
+		if (!input_sv.len) {
+			fprintf(stderr, "ERROR: no username given!\n");
+			fprintf(stderr, "usage: /unmute [nickname]\n");
+			return;
+		}
+		char* username = sv_to_cstr(input_sv);
+		msg_create(&msg, cli.nickname, CMD_UNMUTE, username);
+		msg_send(&cli.soc, &msg);
+		msg_free(&msg);
+		free(username);
 	}
 }
 

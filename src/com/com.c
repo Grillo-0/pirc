@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
 	socket_create(&soc);
 
 	socket_bind(&soc, 0);
-	printf("running on port: %d\n", ntohs(soc.port));
+	printf("running on port: %d\n", soc.port);
 
 	struct socket com_soc;
 	char buf[MSG_SIZE];

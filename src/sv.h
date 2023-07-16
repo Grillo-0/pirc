@@ -23,5 +23,6 @@ struct sv sv_from_cstr(char* cstr);
 char* sv_to_cstr(struct sv sv);
 struct sv sv_chop_by_delim(struct sv* sv, const char delim);
 int sv_comp(struct sv a, struct sv b);
+int sv_contains(const struct sv a, const char c);
 
 #endif // __PIRC_STR_VIEW_H__

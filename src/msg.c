@@ -16,7 +16,13 @@ static char* cmd2str(const enum msg_cmd cmd) {
 	cmd_str[CMD_PING] = "PING";
 	cmd_str[CMD_PONG] = "PONG";
 	cmd_str[CMD_CONNECT] = "CON";
+	cmd_str[CMD_JOIN] = "JOIN";
+	cmd_str[CMD_NICKNAME] = "NICK";
 	cmd_str[CMD_INVALID] = "INVALID";
+	cmd_str[CMD_KICK] = "KICK";
+	cmd_str[CMD_WHOIS] = "WHOIS";
+	cmd_str[CMD_MUTE] = "MUTE";
+	cmd_str[CMD_UNMUTE] = "UNMUTE";
 
 	return cmd_str[cmd];
 }
@@ -30,25 +36,40 @@ static enum msg_cmd str2cmd(const char* cmd) {
 		return CMD_PONG;
 	if (!strcmp(cmd, "CON"))
 		return CMD_CONNECT;
+	if (!strcmp(cmd, "JOIN"))
+		return CMD_JOIN;
+	if (!strcmp(cmd, "NICK"))
+		return CMD_NICKNAME;
+	if (!strcmp(cmd, "KICK"))
+		return CMD_KICK;
+	if (!strcmp(cmd, "WHOIS"))
+		return CMD_WHOIS;
+	if (!strcmp(cmd, "MUTE"))
+		return CMD_MUTE;
+	if (!strcmp(cmd, "UNMUTE"))
+		return CMD_UNMUTE;
 	return CMD_INVALID;
 }
 
 static void parse_params(struct msg* msg, struct sv buf) {
 	msg->params_size = 0;
 	msg->params = NULL;
+
+	if (!sv_comp(buf, SV("\r\n")))
+		return;
+
+	buf = sv_chop_by_delim(&buf, '\r');
+
 	while (buf.len != 0) {
 		msg->params = realloc(msg->params, msg->params_size + 1);
 		msg->params[msg->params_size] = sv_chop_by_delim(&buf, ':');
 		msg->params_size++;
 	}
-	msg->params[msg->params_size - 1].len -= 2;
 }
 
-static void parse_raw_msg(struct msg* msg, char* buf) {
-	memcpy(msg, buf, MSG_SIZE);
+static void parse_raw_msg(struct msg* msg) {
 
-	struct sv buf_sv = sv_from_cstr(buf);
-
+	struct sv buf_sv = sv_from_cstr(msg->raw);
 
 	struct sv cmd = sv_chop_by_delim(&buf_sv, ' ');
 
@@ -68,6 +89,10 @@ static void parse_raw_msg(struct msg* msg, char* buf) {
 	parse_params(msg, buf_sv);
 }
 
+void add_param(char** buf, char* param) {
+	memcpy(*buf, param, strlen(param));
+	*buf += strlen(param);
+}
 
 void msg_create(struct msg* msg, char* prefix, enum msg_cmd cmd, ...) {
 	char* raw_ptr = msg->raw;
@@ -90,12 +115,38 @@ void msg_create(struct msg* msg, char* prefix, enum msg_cmd cmd, ...) {
 	case CMD_MSG:
 		msg->params_size = 1;
 		char* m = va_arg(args, char*);
-		memcpy(raw_ptr, m, strlen(m));
-		raw_ptr += strlen(m);
+		add_param(&raw_ptr, m);
 		break;
 	case CMD_PING:
 	case CMD_PONG:
 	case CMD_CONNECT:
+		break;
+	case CMD_JOIN:
+		msg->params_size = 1;
+		char* channel = va_arg(args, char*);
+		add_param(&raw_ptr, channel);
+		break;
+	case CMD_NICKNAME:
+		break;
+	case CMD_KICK:
+		msg->params_size = 1;
+		char* username = va_arg(args, char*);
+		add_param(&raw_ptr, username);
+		break;
+	case CMD_WHOIS:
+		msg->params_size = 1;
+		char* user = va_arg(args, char*);
+		add_param(&raw_ptr, user);
+		break;
+	case CMD_MUTE:
+		msg->params_size = 1;
+		char* user_mute = va_arg(args, char*);
+		add_param(&raw_ptr, user_mute);
+		break;
+	case CMD_UNMUTE:
+		msg->params_size = 1;
+		char* user_unmute = va_arg(args, char*);
+		add_param(&raw_ptr, user_unmute);
 		break;
 	case CMD_INVALID:
 	case CMD_SIZE:
@@ -109,15 +160,17 @@ void msg_create(struct msg* msg, char* prefix, enum msg_cmd cmd, ...) {
 	raw_ptr++;
 	*raw_ptr = '\n';
 
-	parse_params(msg, sv_from_cstr(msg->raw + strlen(cmd_str) + 1));
+	parse_raw_msg(msg);
 }
 
 void msg_free(struct msg* msg) {
 	memset(msg->raw, 0, MSG_SIZE);
 
 	msg->cmd = CMD_INVALID;
-	msg->params_size = 0;
-	free(msg->params);
+	if (msg->params_size) {
+		msg->params_size = 0;
+		free(msg->params);
+	}
 }
 
 void msg_send(struct socket* soc, struct msg* msg) {
@@ -155,7 +208,8 @@ int msg_recv(struct socket* soc, struct msg* msg) {
 		return -1;
 	}
 
-	parse_raw_msg(msg, buf);
+	memcpy(msg->raw, buf, MSG_SIZE);
+	parse_raw_msg(msg);
 
 	return 0;
 }

@@ -14,7 +14,7 @@ struct sv sv_from_parts(char* str, size_t len) {
 }
 
 struct sv sv_from_cstr(char* cstr) {
-	return sv_from_parts(cstr, strlen(cstr) - 1);
+	return sv_from_parts(cstr, strlen(cstr));
 }
 
 struct sv sv_chop_by_delim(struct sv* sv, const char delim) {
@@ -46,4 +46,13 @@ char* sv_to_cstr(struct sv sv) {
 	memcpy(res, sv.base, sv.len);
 	res[sv.len] = '\0';
 	return res;
+}
+
+int sv_contains(const struct sv a, const char c) {
+	for (size_t i = 0; i < a.len; i++) {
+		if (a.base[i] == c)
+			return i;
+	}
+
+	return -1;
 }

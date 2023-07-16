@@ -19,8 +19,6 @@ struct client {
 	pthread_t id;
 	struct socket soc;
 	char* nickname;
-	pthread_mutex_t queue_mutex;
-	struct msg_queue* queue;
 };
 
 struct client client_create(struct socket* soc) {
@@ -28,8 +26,6 @@ struct client client_create(struct socket* soc) {
 		.id = 0,
 		.soc = *soc
 	};
-
-	pthread_mutex_init(&result.queue_mutex, NULL);
 
 	return result;
 }
@@ -99,8 +95,7 @@ void* handle_client(void* arg) {
 				pthread_mutex_unlock(&clients_mutex);
 				break;
 			}
-			
-			free(node->cli.queue);
+
 			if (node->back)
 				node->back->next = node->next;
 			else

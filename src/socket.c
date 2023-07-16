@@ -1,4 +1,5 @@
 #include <netinet/in.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -13,6 +14,7 @@ void socket_create(struct socket* soc) {
 	int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	EXIT_ON_ERROR(fd == -1);
 	soc->fd = fd;
+	memset(soc->ip, 0, INET_ADDRSTRLEN);
 	soc->port = 0;
 }
 
@@ -30,7 +32,8 @@ void socket_bind(struct socket* soc, const uint16_t port) {
 
 	socklen_t addr_len = sizeof(addr);
 	EXIT_ON_ERROR(getsockname(soc->fd, (struct sockaddr*)&addr, &addr_len));
-	soc->port = addr.sin_port;
+	EXIT_ON_ERROR(!inet_ntop(AF_INET, &addr.sin_addr, soc->ip, INET_ADDRSTRLEN));
+	soc->port = ntohs(addr.sin_port);
 }
 
 int socket_connect(struct socket* soc, const char* host, const uint16_t port) {
@@ -93,7 +96,8 @@ int socket_accept(struct socket* soc, struct socket* con_soc) {
 		return -1;
 
 	con_soc->fd = fd;
-	con_soc->port = addr.sin_port;
+	EXIT_ON_ERROR(!inet_ntop(AF_INET, &addr.sin_addr, con_soc->ip, INET_ADDRSTRLEN));
+	con_soc->port = ntohs(addr.sin_port);
 
 	return 0;
 }

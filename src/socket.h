@@ -1,8 +1,8 @@
 #ifndef __SOCKET_H__
 #define __SOCKET_H__
 
+#include <netinet/in.h>
 #include <stdint.h>
-
 #include <arpa/inet.h>
 
 /*
@@ -12,6 +12,7 @@
  */
 struct socket {
 	int fd;
+	char ip[INET_ADDRSTRLEN];
 	uint16_t port;
 };
 
